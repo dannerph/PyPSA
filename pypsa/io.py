@@ -1207,8 +1207,8 @@ def import_from_pandapower_net(network, net, extra_line_data=False):
             d["Generator"],
             pd.DataFrame(
                 {
-                    "p_set": -(net.sgen.scaling * net.sgen.p_mw).values,
-                    "q_set": -(net.sgen.scaling * net.sgen.q_mvar).values,
+                    "p_set": (net.sgen.scaling * net.sgen.p_mw).values,
+                    "q_set": (net.sgen.scaling * net.sgen.q_mvar).values,
                     "bus": net.bus.name.loc[net.sgen.bus].values,
                     "control": "PQ",
                 },
@@ -1289,7 +1289,7 @@ def import_from_pandapower_net(network, net, extra_line_data=False):
 
     # if it's not based on a standard-type - get the included values:
     else:
-        s_nom = net.trafo.sn_mva.values / 1000.0
+        s_nom = net.trafo.sn_mva.values
 
         r = net.trafo.vkr_percent.values / 100.0
         x = np.sqrt((net.trafo.vk_percent.values / 100.0) ** 2 - r**2)
