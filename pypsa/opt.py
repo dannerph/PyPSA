@@ -1,12 +1,5 @@
 # -*- coding: utf-8 -*-
 
-## Copyright 2015-2021 PyPSA Developers
-
-## You can find the list of PyPSA Developers at
-## https://pypsa.readthedocs.io/en/latest/developers.html
-
-## PyPSA is released under the open source MIT License, see
-## https://github.com/PyPSA/PyPSA/blob/master/LICENSE.txt
 
 """
 Tools for fast Pyomo linear problem building.
@@ -19,7 +12,7 @@ __author__ = (
     "PyPSA Developers, see https://pypsa.readthedocs.io/en/latest/developers.html"
 )
 __copyright__ = (
-    "Copyright 2015-2021 PyPSA Developers, see https://pypsa.readthedocs.io/en/latest/developers.html, "
+    "Copyright 2015-2022 PyPSA Developers, see https://pypsa.readthedocs.io/en/latest/developers.html, "
     "MIT License"
 )
 
@@ -33,11 +26,10 @@ import os
 import tempfile
 from contextlib import contextmanager
 
-import pyomo
 from pyomo.core.base.constraint import _GeneralConstraintData
 from pyomo.core.expr.logical_expr import inequality
 from pyomo.core.expr.numeric_expr import LinearExpression
-from pyomo.environ import ComponentUID, Constraint, Objective, Var, minimize
+from pyomo.environ import Constraint, Objective, Var, minimize
 from six.moves import cPickle as pickle
 
 # =============================================================================
@@ -195,7 +187,7 @@ def l_constraint(model, name, constraints, *args):
 
     setattr(model, name, Constraint(*args, noruleinit=True))
     v = getattr(model, name)
-    for i in v._index:
+    for i in v._index_set:
         c = constraints[i]
         if isinstance(c, LConstraint):
             variables = c.lhs.variables + [

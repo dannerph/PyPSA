@@ -1,17 +1,22 @@
 # -*- coding: utf-8 -*-
 from packaging.version import Version, parse
-from pypower.api import case118 as case
-from pypower.api import ppoption, runpf
-from pypower.ppver import ppver
 
-import pypsa
+try:
+    # pypower is not maintained and with recent numpy verion it breaks
+    from pypower.api import case118 as case
+    from pypower.api import ppoption, runpf
+    from pypower.ppver import ppver
 
-pypower_version = parse(ppver()["Version"])
+    pypower_version = parse(ppver()["Version"])
+except:
+    pypower_version = Version("0.0.0")
 
 import numpy as np
 import pandas as pd
 import pytest
 from numpy.testing import assert_array_almost_equal as equal
+
+import pypsa
 
 
 @pytest.mark.skipif(
@@ -19,7 +24,6 @@ from numpy.testing import assert_array_almost_equal as equal
     reason="PyPOWER 5.0.0 is broken with recent numpy and unmaintained since Aug 2017.",
 )
 def test_pypower_case():
-
     # ppopt is a dictionary with the details of the optimization routine to run
     ppopt = ppoption(PF_ALG=2)
 

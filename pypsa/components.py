@@ -1,13 +1,5 @@
 # -*- coding: utf-8 -*-
 
-## Copyright 2015-2021 PyPSA Developers
-
-## You can find the list of PyPSA Developers at
-## https://pypsa.readthedocs.io/en/latest/developers.html
-
-## PyPSA is released under the open source MIT License, see
-## https://github.com/PyPSA/PyPSA/blob/master/LICENSE.txt
-
 """
 Power system components.
 """
@@ -19,13 +11,14 @@ __author__ = (
     "PyPSA Developers, see https://pypsa.readthedocs.io/en/latest/developers.html"
 )
 __copyright__ = (
-    "Copyright 2015-2021 PyPSA Developers, see https://pypsa.readthedocs.io/en/latest/developers.html, "
+    "Copyright 2015-2022 PyPSA Developers, see https://pypsa.readthedocs.io/en/latest/developers.html, "
     "MIT License"
 )
 
 import os
 import sys
 from collections import namedtuple
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -140,17 +133,14 @@ class Network(Basic):
 
     Parameters
     ----------
-    import_name : string
-        Name of netCDF file, HDF5 .h5 store or folder from which to import CSVs
-        of network data.
+    import_name : string, Path
+        Path to netCDF file, HDF5 .h5 store or folder of CSV files from which to
+        import network data.
     name : string, default ""
         Network name.
     ignore_standard_types : boolean, default False
         If True, do not read in PyPSA standard types into standard types
         DataFrames.
-    csv_folder_name : string
-        Name of folder from which to import CSVs of network data. Overrides
-        import_name.
     override_components : pandas.DataFrame
         If you want to override the standard PyPSA components in
         pypsa.components.components, pass it a DataFrame with index of component
@@ -251,6 +241,8 @@ class Network(Basic):
         # this will be saved on export
         self.pypsa_version = pypsa_version
 
+        self._meta = {}
+
         self._snapshots = pd.Index(["now"])
 
         cols = ["objective", "stores", "generators"]
@@ -334,16 +326,37 @@ class Network(Basic):
         if not ignore_standard_types:
             self.read_in_default_standard_types()
 
-        if import_name is not None:
-            if import_name[-3:] == ".h5":
+        if import_name:
+            import_name = Path(import_name)
+            if import_name.suffix == ".h5":
                 self.import_from_hdf5(import_name)
-            elif import_name[-3:] == ".nc":
+            elif import_name.suffix == ".nc":
                 self.import_from_netcdf(import_name)
-            else:
+            elif import_name.is_dir():
                 self.import_from_csv_folder(import_name)
+            else:
+                raise ValueError(
+                    f"import_name '{import_name}' is not a valid .h5 file, .nc file or directory."
+                )
 
         for key, value in kwargs.items():
             setattr(self, key, value)
+
+    def __repr__(self):
+        header = "PyPSA Network" + (f" '{self.name}'" if self.name else "")
+        comps = {}
+        for c in self.iterate_components():
+            if "Type" not in c.name and len(c.df):
+                comps[c.name] = f" - {c.name}: {len(c.df)}"
+        content = "\nComponents:"
+        if comps:
+            content += "\n" + "\n".join(comps[c] for c in sorted(comps))
+        else:
+            header = "Empty " + header
+            content += " none"
+        content += "\n"
+        content += f"Snapshots: {len(self.snapshots)}"
+        return header + content
 
     def _build_dataframes(self):
         """
@@ -423,6 +436,19 @@ class Network(Basic):
         dict of pandas.DataFrame
         """
         return getattr(self, self.components[component_name]["list_name"] + "_t")
+
+    @property
+    def meta(self):
+        """
+        Dictionary of the network meta data.
+        """
+        return self._meta
+
+    @meta.setter
+    def meta(self, new):
+        if not isinstance(new, (dict, Dict)):
+            raise TypeError(f"Meta must be a dictionary, received a {type(new)}")
+        self._meta = new
 
     def set_snapshots(self, value):
         """
@@ -1300,6 +1326,7 @@ class Network(Basic):
                     missing,
                 )
 
+        # check for unknown buses
         for c in self.iterate_components(self.branch_components):
             for attr in ["bus0", "bus1"]:
                 missing = c.df.index[~c.df[attr].isin(self.buses.index)]
@@ -1310,6 +1337,20 @@ class Network(Basic):
                         attr,
                         missing,
                     )
+
+        # check for disconnected buses
+        connected_buses = set()
+        for c in self.iterate_components(self.branch_components):
+            for attr in [col for col in c.df.columns if col.startswith("bus")]:
+                connected_buses.update(c.df[attr])
+        for c in self.iterate_components(self.one_port_components):
+            connected_buses.update(c.df.bus)
+
+        disconnected_buses = set(self.buses.index) - connected_buses
+        if disconnected_buses:
+            logger.warning(
+                f"The following buses have no attached components, which can break the lopf:\n{disconnected_buses}"
+            )
 
         def bad_by_type(branch, attr):
             if branch.type not in self.line_types.index:
