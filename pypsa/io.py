@@ -1238,6 +1238,24 @@ def import_from_pandapower_net(network, net, extra_line_data=False):
         net.bus.name.loc[net.ext_grid.bus].values, "v_mag_pu_set"
     ] = net.ext_grid.vm_pu.values
 
+    # deal with storage units
+    energy_mwh = (net.storage.max_e_mwh.values - net.storage.min_e_mwh.values)
+    d["StorageUnit"] = pd.DataFrame(
+        {
+            "p_set": -(net.storage.scaling * net.storage.p_mw).values,
+            "q_set": -(net.storage.scaling * net.storage.q_mvar).values,
+            "p_nom": net.storage.sn_mva.values,
+            "state_of_charge_initial": energy_mwh*net.storage.soc_percent.values,
+            "efficiency_store": net.storage.efficiency_percent.values,
+            "efficiency_dispatch": net.storage.efficiency_percent.values,
+            "standing_loss": (net.storage["self-discharge_percent_per_day"] /100.0 / 24.0).values, # losses per hour
+            "max_hours": energy_mwh/net.storage.sn_mva.values,
+            "bus": net.bus.name.loc[net.storage.bus].values,
+            "control": "PQ",
+        },
+        index=net.storage.name,
+    )
+
     if extra_line_data == False:
         d["Line"] = pd.DataFrame(
             {
@@ -1315,7 +1333,7 @@ def import_from_pandapower_net(network, net, extra_line_data=False):
         )
         d["Transformer"] = d["Transformer"].fillna(0)
 
-    for c in ["Bus", "Load", "Generator", "Line", "Transformer"]:
+    for c in ["Bus", "Load", "Generator", "Line", "Transformer", "StorageUnit"]:
         network.import_components_from_dataframe(d[c], c)
 
     # amalgamate buses connected by closed switches
